@@ -115,7 +115,8 @@ const EMOJI = {
   DALEMBERT: '📽',
   CUSTOM: '📠',
   TIME: '⌛️',
-  RESULTSBS: '📊'
+  RESULTSBS: '📊',
+  DRAGON: '🐉'
 };
 
 const STYLE = {
@@ -1554,6 +1555,73 @@ function getBsOrderPrediction(userId) {
   }
 }
 
+// ========== 𝕯𝖗𝖆𝖓𝖌𝖔𝖓 𝕱𝖎𝖗𝖊 STRATEGY ==========
+function getDragonFirePrediction(userId) {
+  try {
+    const results = userAllResults[userId] || [];
+    
+    if (results.length < 3) {
+      logging.info(`🐉 DRAGON_FIRE: Not enough history (${results.length}/3). Defaulting to B`);
+      return { choice: 'B', shouldSkip: false };
+    }
+    
+    // နောက်ဆုံး 3 ခု ကြည့်
+    const last3 = results.slice(-3);
+    const bigCount = last3.filter(r => r === 'B').length;
+    const smallCount = last3.filter(r => r === 'S').length;
+    
+    // နောက်ဆုံး 5 ခု ကြည့် (Reversal အတွက်)
+    let reversalCheck = false;
+    if (results.length >= 5) {
+      const last5 = results.slice(-5);
+      const big5 = last5.filter(r => r === 'B').length;
+      const small5 = last5.filter(r => r === 'S').length;
+      
+      if (big5 >= 4 || small5 >= 4) {
+        reversalCheck = true;
+      }
+    }
+    
+    let prediction;
+    let reason;
+    
+    // Reversal Check (မီးလှန်လှန်ခြင်း)
+    if (reversalCheck) {
+      const last5 = results.slice(-5);
+      const big5 = last5.filter(r => r === 'B').length;
+      
+      if (big5 >= 4) {
+        prediction = 'S';
+        reason = `Reversal (${big5}B/5) → SMALL`;
+      } else {
+        prediction = 'B';
+        reason = `Reversal (${5 - big5}S/5) → BIG`;
+      }
+    }
+    // Dragon Fire (3 ခုလုံး တူ)
+    else if (bigCount === 3) {
+      prediction = 'B';
+      reason = `Dragon Fire (BBB) → BIG`;
+    } else if (smallCount === 3) {
+      prediction = 'S';
+      reason = `Dragon Fire (SSS) → SMALL`;
+    }
+    // Majority
+    else {
+      prediction = bigCount > smallCount ? 'B' : 'S';
+      reason = `Majority (${bigCount}B/${smallCount}S) → ${prediction}`;
+    }
+    
+    logging.info(`🐉 DRAGON_FIRE: ${reason}`);
+    return { choice: prediction, shouldSkip: false };
+    
+  } catch (error) {
+    logging.error(`❌ DRAGON_FIRE error: ${error.message}`);
+    return { choice: 'B', shouldSkip: false };
+  }
+}
+// ========== 𝕯𝖗𝖆𝖓𝖌𝖔𝖓 𝕱𝖎𝖗𝖊 END ==========
+
 async function getPotatoGraPrediction(userId, session, gameType) {
   try {
     let history;
@@ -2021,6 +2089,11 @@ async function winLoseChecker(bot) {
                   settings.time_warp_pos = settings.time_warp_pos === 8 ? 5 : 8;
                   logging.info(`TIME_WARP: Loss. Switched lookback to ${settings.time_warp_pos}`);
                 }
+              }
+              
+              // 𝕯𝖗𝖆𝖓𝖌𝖔𝖓 𝕱𝖎𝖗𝖊 - No state to update (fully history-based)
+              if (settings.strategy === "DRAGON_FIRE") {
+                logging.info(`🐉 DRAGON_FIRE: ${isWin ? 'WIN' : 'LOSS'}`);
               }
               
               const entryLayer = settings.layer_limit || 1;
@@ -2493,6 +2566,10 @@ async function bettingWorker(userId, ctx, bot) {
     settings.alinkar_index = 0;
     logging.info(`ALINKAR initialized`);
   }
+  
+  if (settings.strategy === "DRAGON_FIRE") {
+    logging.info(`🐉 DRAGON_FIRE initialized (fully history-based)`);
+  }
 
   if (settings.strategy === "COLOR_SNIPER") {
     settings.color_sniper_state = {
@@ -2644,6 +2721,7 @@ let strategyText = settings.strategy === "TREND_FOLLOW" ? "Trend Follow" :
                    settings.strategy === "ALINKAR" ? "Alinkar" :
                    settings.strategy === "OLDEST_RESULT" ? "Oldest Result" :
                    settings.strategy === "POTATO_GRA" ? "Potato Gra" :
+                   settings.strategy === "DRAGON_FIRE" ? "Dragon Fire" :
                    safeEscape(settings.strategy);
 
   if (settings.strategy === "TREND_FOLLOW") {
@@ -2905,6 +2983,11 @@ if (settings.strategy === "POTATO_GRA" && userCredentials[userId]) {
         ch = prediction.choice;
         shouldSkip = prediction.shouldSkip;
         if (shouldSkip) skipReason = "(BS Order)";
+      } else if (settings.strategy === "DRAGON_FIRE") {
+        const prediction = getDragonFirePrediction(userId);
+        ch = prediction.choice;
+        shouldSkip = prediction.shouldSkip;
+        if (shouldSkip) skipReason = "(Dragon Fire)";
       } else {
         ch = 'B';
         logging.info(`Default bet: B`);
@@ -3221,6 +3304,9 @@ function makeStrategyKeyboard(userId = null) {
     [
       Markup.button.callback(`🥔 POTATO GRA`, "strategy:POTATO_GRA"),
       Markup.button.callback(`✨ SHINE`, "strategy:SHINE")
+    ],
+    [
+      Markup.button.callback(`🐉 𝕯𝖗𝖆𝖓𝖌𝖔𝖓 𝕱𝖎𝖗𝖊`, "strategy:DRAGON_FIRE")
     ]
   ];
   
@@ -3772,7 +3858,15 @@ async function callbackQueryHandler(ctx) {
       await sendMessageWithRetry(ctx, `✨ ${STYLE.BOLD('SHINE Activated')}`, makeMainKeyboard(true, isAdmin(userId)));
     } else if (strategy === "OLDEST_RESULT") {
       await sendMessageWithRetry(ctx, `🕰 ${STYLE.BOLD('OLDEST RESULT Activated')}`, makeMainKeyboard(true, isAdmin(userId)));
-    }else if (strategy === "ALINKAR") {
+    } else if (strategy === "DRAGON_FIRE") {
+      await sendMessageWithRetry(ctx, 
+        `🐉 ${STYLE.BOLD('𝕯𝖗𝖆𝖓𝖌𝖔𝖓 𝕱𝖎𝖗𝖊 Activated')}\n\n` +
+        `${EMOJI.INFO} • Dragon Fire Logic\n` +
+        `${EMOJI.INFO} • 3 Same → Follow\n` +
+        `${EMOJI.INFO} • 4/5 Same → Reverse`,
+        makeMainKeyboard(true, isAdmin(userId))
+      );
+    } else if (strategy === "ALINKAR") {
       await sendMessageWithRetry(ctx, `🔗 ${STYLE.BOLD('ALINKAR Activated')}`, makeMainKeyboard(true, isAdmin(userId)));
     } else {
       await sendMessageWithRetry(ctx, `${EMOJI.SUCCESS} ${STYLE.BOLD('Strategy set')}`, makeMainKeyboard(true, isAdmin(userId)));
