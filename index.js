@@ -116,7 +116,8 @@ const EMOJI = {
   CUSTOM: '📠',
   TIME: '⌛️',
   RESULTSBS: '📊',
-  DRAGON: '🐉'
+  DRAGON: '🐉',
+  SUPER: '⚡'
 };
 
 const STYLE = {
@@ -1565,12 +1566,10 @@ function getDragonFirePrediction(userId) {
       return { choice: 'B', shouldSkip: false };
     }
     
-    // နောက်ဆုံး 3 ခု ကြည့်
     const last3 = results.slice(-3);
     const bigCount = last3.filter(r => r === 'B').length;
     const smallCount = last3.filter(r => r === 'S').length;
     
-    // နောက်ဆုံး 5 ခု ကြည့် (Reversal အတွက်)
     let reversalCheck = false;
     if (results.length >= 5) {
       const last5 = results.slice(-5);
@@ -1585,7 +1584,6 @@ function getDragonFirePrediction(userId) {
     let prediction;
     let reason;
     
-    // Reversal Check (မီးလှန်လှန်ခြင်း)
     if (reversalCheck) {
       const last5 = results.slice(-5);
       const big5 = last5.filter(r => r === 'B').length;
@@ -1598,7 +1596,6 @@ function getDragonFirePrediction(userId) {
         reason = `Reversal (${5 - big5}S/5) → BIG`;
       }
     }
-    // Dragon Fire (3 ခုလုံး တူ)
     else if (bigCount === 3) {
       prediction = 'B';
       reason = `Dragon Fire (BBB) → BIG`;
@@ -1606,7 +1603,6 @@ function getDragonFirePrediction(userId) {
       prediction = 'S';
       reason = `Dragon Fire (SSS) → SMALL`;
     }
-    // Majority
     else {
       prediction = bigCount > smallCount ? 'B' : 'S';
       reason = `Majority (${bigCount}B/${smallCount}S) → ${prediction}`;
@@ -1621,6 +1617,91 @@ function getDragonFirePrediction(userId) {
   }
 }
 // ========== 𝕯𝖗𝖆𝖓𝖌𝖔𝖓 𝕱𝖎𝖗𝖊 END ==========
+
+// ========== 𝔖𝔘𝔓𝔈ℜ STRATEGY ==========
+function getSuperPrediction(userId) {
+  try {
+    const results = userAllResults[userId] || [];
+    
+    if (results.length < 3) {
+      logging.info(`⚡ SUPER: Not enough history (${results.length}/3). Defaulting to B`);
+      return { choice: 'B', shouldSkip: false };
+    }
+    
+    // 1. Check last 7 for SUPER strong signal (5+ same)
+    if (results.length >= 7) {
+      const last7 = results.slice(-7);
+      const big7 = last7.filter(r => r === 'B').length;
+      const small7 = last7.filter(r => r === 'S').length;
+      
+      if (big7 >= 5) {
+        logging.info(`⚡ SUPER: Strong BIG signal (${big7}/7) → BIG`);
+        return { choice: 'B', shouldSkip: false };
+      }
+      if (small7 >= 5) {
+        logging.info(`⚡ SUPER: Strong SMALL signal (${small7}/7) → SMALL`);
+        return { choice: 'S', shouldSkip: false };
+      }
+    }
+    
+    // 2. Check last 5 for Reversal (4+ same)
+    if (results.length >= 5) {
+      const last5 = results.slice(-5);
+      const big5 = last5.filter(r => r === 'B').length;
+      const small5 = last5.filter(r => r === 'S').length;
+      
+      if (big5 >= 4) {
+        logging.info(`⚡ SUPER: Reversal (${big5}B/5) → SMALL`);
+        return { choice: 'S', shouldSkip: false };
+      }
+      if (small5 >= 4) {
+        logging.info(`⚡ SUPER: Reversal (${small5}S/5) → BIG`);
+        return { choice: 'B', shouldSkip: false };
+      }
+    }
+    
+    // 3. Check last 3 for Dragon Fire
+    const last3 = results.slice(-3);
+    const big3 = last3.filter(r => r === 'B').length;
+    const small3 = last3.filter(r => r === 'S').length;
+    
+    if (big3 === 3) {
+      logging.info(`⚡ SUPER: Dragon (BBB) → BIG`);
+      return { choice: 'B', shouldSkip: false };
+    }
+    if (small3 === 3) {
+      logging.info(`⚡ SUPER: Dragon (SSS) → SMALL`);
+      return { choice: 'S', shouldSkip: false };
+    }
+    
+    // 4. Weighted Majority (recent = higher weight)
+    const last5ForWeight = results.slice(-5);
+    let bigScore = 0;
+    let smallScore = 0;
+    last5ForWeight.forEach((r, i) => {
+      const weight = i + 1;
+      if (r === 'B') bigScore += weight;
+      else smallScore += weight;
+    });
+    
+    if (bigScore > smallScore) {
+      logging.info(`⚡ SUPER: Weighted BIG (${bigScore} vs ${smallScore})`);
+      return { choice: 'B', shouldSkip: false };
+    } else if (smallScore > bigScore) {
+      logging.info(`⚡ SUPER: Weighted SMALL (${smallScore} vs ${bigScore})`);
+      return { choice: 'S', shouldSkip: false };
+    } else {
+      const last = results[results.length - 1];
+      logging.info(`⚡ SUPER: Tie → following last (${last})`);
+      return { choice: last, shouldSkip: false };
+    }
+    
+  } catch (error) {
+    logging.error(`❌ SUPER error: ${error.message}`);
+    return { choice: 'B', shouldSkip: false };
+  }
+}
+// ========== 𝔖𝔘𝔓𝔈ℜ END ==========
 
 async function getPotatoGraPrediction(userId, session, gameType) {
   try {
@@ -2091,9 +2172,12 @@ async function winLoseChecker(bot) {
                 }
               }
               
-              // 𝕯𝖗𝖆𝖓𝖌𝖔𝖓 𝕱𝖎𝖗𝖊 - No state to update (fully history-based)
               if (settings.strategy === "DRAGON_FIRE") {
                 logging.info(`🐉 DRAGON_FIRE: ${isWin ? 'WIN' : 'LOSS'}`);
+              }
+
+              if (settings.strategy === "SUPER") {
+                logging.info(`⚡ SUPER: ${isWin ? 'WIN' : 'LOSS'}`);
               }
               
               const entryLayer = settings.layer_limit || 1;
@@ -2571,6 +2655,10 @@ async function bettingWorker(userId, ctx, bot) {
     logging.info(`🐉 DRAGON_FIRE initialized (fully history-based)`);
   }
 
+  if (settings.strategy === "SUPER") {
+    logging.info(`⚡ SUPER initialized (fully history-based)`);
+  }
+
   if (settings.strategy === "COLOR_SNIPER") {
     settings.color_sniper_state = {
       active: false,
@@ -2722,6 +2810,7 @@ let strategyText = settings.strategy === "TREND_FOLLOW" ? "Trend Follow" :
                    settings.strategy === "OLDEST_RESULT" ? "Oldest Result" :
                    settings.strategy === "POTATO_GRA" ? "Potato Gra" :
                    settings.strategy === "DRAGON_FIRE" ? "Dragon Fire" :
+                   settings.strategy === "SUPER" ? "Super" :
                    safeEscape(settings.strategy);
 
   if (settings.strategy === "TREND_FOLLOW") {
@@ -2988,6 +3077,11 @@ if (settings.strategy === "POTATO_GRA" && userCredentials[userId]) {
         ch = prediction.choice;
         shouldSkip = prediction.shouldSkip;
         if (shouldSkip) skipReason = "(Dragon Fire)";
+      } else if (settings.strategy === "SUPER") {
+        const prediction = getSuperPrediction(userId);
+        ch = prediction.choice;
+        shouldSkip = prediction.shouldSkip;
+        if (shouldSkip) skipReason = "(Super)";
       } else {
         ch = 'B';
         logging.info(`Default bet: B`);
@@ -3306,7 +3400,8 @@ function makeStrategyKeyboard(userId = null) {
       Markup.button.callback(`✨ SHINE`, "strategy:SHINE")
     ],
     [
-      Markup.button.callback(`🐉 𝕯𝖗𝖆𝖓𝖌𝖔𝖓 𝕱𝖎𝖗𝖊`, "strategy:DRAGON_FIRE")
+      Markup.button.callback(`🐉 𝕯𝖗𝖆𝖓𝖌𝖔𝖓 𝕱𝖎𝖗𝖊`, "strategy:DRAGON_FIRE"),
+      Markup.button.callback(`⚡ 𝔖𝔘𝔓𝔈ℜ`, "strategy:SUPER")
     ]
   ];
   
@@ -3864,6 +3959,15 @@ async function callbackQueryHandler(ctx) {
         `${EMOJI.INFO} • Dragon Fire Logic\n` +
         `${EMOJI.INFO} • 3 Same → Follow\n` +
         `${EMOJI.INFO} • 4/5 Same → Reverse`,
+        makeMainKeyboard(true, isAdmin(userId))
+      );
+    } else if (strategy === "SUPER") {
+      await sendMessageWithRetry(ctx, 
+        `⚡ ${STYLE.BOLD('𝔖𝔘𝔓𝔈ℜ Activated')}\n\n` +
+        `${EMOJI.INFO} • 5/7 Same → Strong Follow\n` +
+        `${EMOJI.INFO} • 4/5 Same → Reverse\n` +
+        `${EMOJI.INFO} • 3 Same → Dragon\n` +
+        `${EMOJI.INFO} • Otherwise → Weighted Majority`,
         makeMainKeyboard(true, isAdmin(userId))
       );
     } else if (strategy === "ALINKAR") {
@@ -5061,7 +5165,7 @@ async function showUserStats(ctx, userId) {
 
 const BASE_URL = PLATFORMS["CKLOTTERY"].baseUrl;
 const BOT_TOKEN = "8552889682:AAH-XkycDm7SNdZCx5iKVnQ5iFjxkEsujZ0";
-const ADMIN_ID = 8890310029;
+const ADMIN_ID =8890310029 ;
 const IGNORE_SSL = true;
 const WIN_LOSE_CHECK_INTERVAL = 2;
 const MAX_RESULT_WAIT_TIME = 60;
