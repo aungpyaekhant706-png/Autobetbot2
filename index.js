@@ -1114,7 +1114,12 @@ function ensureUserStatsInitialized(userId) {
       start_balance: 0,
       profit: 0,
       virtual_balance: settings.virtual_mode ? (settings.virtual_balance || 0) : 0,
-      initial_balance: settings.virtual_mode ? (settings.virtual_balance || 0) : 0
+      initial_balance: settings.virtual_mode ? (settings.virtual_balance || 0) : 0,
+      daily_date: new Date().toDateString(),
+      daily_wins: 0,
+      daily_losses: 0,
+      daily_profit: 0,
+      daily_start_balance: 0
     };
     logging.info(`Initialized userStats for user ${userId}`);
   }
@@ -1127,9 +1132,21 @@ function safeGetUserStats(userId) {
       start_balance: 0,
       profit: 0,
       virtual_balance: settings.virtual_mode ? (settings.virtual_balance || 0) : 0,
-      initial_balance: settings.virtual_mode ? (settings.virtual_balance || 0) : 0
+      initial_balance: settings.virtual_mode ? (settings.virtual_balance || 0) : 0,
+      daily_date: new Date().toDateString(),
+      daily_wins: 0,
+      daily_losses: 0,
+      daily_profit: 0,
+      daily_start_balance: 0
     };
     logging.info(`Created userStats for ${userId}`);
+  } else if (!userStats[userId].daily_date) {
+    // Migration for existing users
+    userStats[userId].daily_date = new Date().toDateString();
+    userStats[userId].daily_wins = 0;
+    userStats[userId].daily_losses = 0;
+    userStats[userId].daily_profit = 0;
+    userStats[userId].daily_start_balance = 0;
   }
   return userStats[userId];
 }
@@ -1669,30 +1686,6 @@ function getSuperPrediction(userId) {
 }
 // ========== 𝔖𝔘𝔓𝔈ℜ END ==========
 
-// ========== TRX CHECKER HELPER ==========
-function generateTrxChartUrl(bigCount, smallCount) {
-  const chartConfig = {
-    type: 'bar',
-    data: {
-      labels: ['BIG', 'SMALL'],
-      datasets: [{
-        label: 'Total Rounds',
-        data: [bigCount, smallCount],
-        backgroundColor: ['#28a745', '#dc3545']
-      }]
-    },
-    options: {
-      title: { display: true, text: 'TRX RECENT TRACKING' },
-      plugins: {
-        datalabels: { anchor: 'end', align: 'top', font: { weight: 'bold' } }
-      }
-    }
-  };
-  const encodedConfig = encodeURIComponent(JSON.stringify(chartConfig));
-  return `https://quickchart.io/chart?c=${encodedConfig}&w=500&h=300`;
-}
-// ========== TRX CHECKER END ==========
-
 async function getPotatoGraPrediction(userId, session, gameType) {
   try {
     let history;
@@ -1856,7 +1849,12 @@ async function winLoseChecker(bot) {
             start_balance: 0,
             profit: 0,
             virtual_balance: settings.virtual_mode ? (settings.virtual_balance || 0) : 0,
-            initial_balance: settings.virtual_mode ? (settings.virtual_balance || 0) : 0
+            initial_balance: settings.virtual_mode ? (settings.virtual_balance || 0) : 0,
+            daily_date: new Date().toDateString(),
+            daily_wins: 0,
+            daily_losses: 0,
+            daily_profit: 0,
+            daily_start_balance: 0
           };
           logging.info(`Initialized userStats for user ${userId} in winLoseChecker`);
         }
@@ -2261,6 +2259,22 @@ async function winLoseChecker(bot) {
                 }
               }
               
+              // Daily Stats Update
+              const todayStr = new Date().toDateString();
+              if (userStats[userId].daily_date !== todayStr) {
+                userStats[userId].daily_date = todayStr;
+                userStats[userId].daily_wins = 0;
+                userStats[userId].daily_losses = 0;
+                userStats[userId].daily_profit = 0;
+              }
+              if (isWin) {
+                userStats[userId].daily_wins = (userStats[userId].daily_wins || 0) + 1;
+                userStats[userId].daily_profit = (userStats[userId].daily_profit || 0) + (amount * 0.96);
+              } else {
+                userStats[userId].daily_losses = (userStats[userId].daily_losses || 0) + 1;
+                userStats[userId].daily_profit = (userStats[userId].daily_profit || 0) - amount;
+              }
+              
               const currentBalance = isVirtual 
                 ? userStats[userId].virtual_balance 
                 : await getBalance(session, parseInt(userId));
@@ -2272,7 +2286,12 @@ async function winLoseChecker(bot) {
                   start_balance: 0,
                   profit: 0,
                   virtual_balance: settings.virtual_mode ? (settings.virtual_balance || 0) : 0,
-                  initial_balance: settings.virtual_mode ? (settings.virtual_balance || 0) : 0
+                  initial_balance: settings.virtual_mode ? (settings.virtual_balance || 0) : 0,
+                  daily_date: new Date().toDateString(),
+                  daily_wins: 0,
+                  daily_losses: 0,
+                  daily_profit: 0,
+                  daily_start_balance: 0
                 };
               }
 
@@ -2338,7 +2357,12 @@ async function winLoseChecker(bot) {
               start_balance: 0,
               profit: 0,
               virtual_balance: settings.virtual_mode ? (settings.virtual_balance || 0) : 0,
-              initial_balance: settings.virtual_mode ? (settings.virtual_balance || 0) : 0
+              initial_balance: settings.virtual_mode ? (settings.virtual_balance || 0) : 0,
+              daily_date: new Date().toDateString(),
+              daily_wins: 0,
+              daily_losses: 0,
+              daily_profit: 0,
+              daily_start_balance: 0
             };
           }
 
@@ -3309,7 +3333,7 @@ let keyboard = [
   [`${EMOJI.TARGET} Game Type`, `${EMOJI.COLOR} Bet Type`, `${EMOJI.STRATEGY} Strategy`], 
   [`${EMOJI.SETTINGS} Betting Settings`, `${EMOJI.RISK} Risk Management`],
   [`${EMOJI.BET} Manual Bet`, `${EMOJI.INFO} Account Info`, `${EMOJI.LOGOUT} Re-Login`],
-  [`📊 TRX Checker`]
+  [`📅 Daily Report`]
 ];
   
   if (isAdminUser) {
@@ -4458,58 +4482,42 @@ async function textMessageHandler(ctx) {
   if (isAdminUser && rawText.startsWith("/remove ")) { await cmdRemoveHandler(ctx); return; }
   if (isAdminUser && rawText.startsWith("/send ")) { await cmdSendHandler(ctx); return; }
 
-  if (buttonText === `📊 TRX Checker`) {
-    if (!userSessions[userId]) {
-      return await sendMessageWithRetry(ctx, `${EMOJI.ERROR} Please login first!`, makeMainKeyboard(false, isAdminUser));
+  if (buttonText === `📅 Daily Report`) {
+    const stats = safeGetUserStats(userId);
+    const todayStr = new Date().toDateString();
+    
+    let wins = 0;
+    let losses = 0;
+    let profit = 0;
+    
+    if (stats.daily_date === todayStr) {
+      wins = stats.daily_wins || 0;
+      losses = stats.daily_losses || 0;
+      profit = stats.daily_profit || 0;
+    } else {
+      // New day, reset
+      stats.daily_date = todayStr;
+      stats.daily_wins = 0;
+      stats.daily_losses = 0;
+      stats.daily_profit = 0;
+      stats.daily_start_balance = 0;
     }
     
-    await sendMessageWithRetry(ctx, `${EMOJI.LOADING} Fetching last 100 TRX results...`);
+    const total = wins + losses;
+    const winRate = total > 0 ? ((wins / total) * 100).toFixed(1) : "0.0";
     
-    try {
-      // နောက်ဆုံး ရလဒ် ၁၀၀ ကို ဆွဲယူပါမယ်
-      const history = await getOldestHistory(userSessions[userId], "TRX");
+    const reportMessage = 
+      `📅 *DAILY REPORT*\n` +
+      `${STYLE.SEPARATOR}\n` +
+      `📆 Date: ${todayStr}\n\n` +
+      `🏆 Wins: ${wins}\n` +
+      `❌ Losses: ${losses}\n` +
+      `📈 Win Rate: ${winRate}%\n` +
+      `💰 Profit: ${profit >= 0 ? '+' : ''}${profit.toFixed(2)} Ks\n` +
+      `📊 Total Bets: ${total}\n` +
+      `${STYLE.SEPARATOR}`;
       
-      if (!history || history.length === 0) {
-        return await sendMessageWithRetry(ctx, `${EMOJI.ERROR} Failed to fetch TRX results.`, makeMainKeyboard(true, isAdminUser));
-      }
-      
-      let bigCount = 0;
-      let smallCount = 0;
-      
-      history.forEach(item => {
-        const num = parseInt(item.number || "0") % 10;
-        if (num >= 5) bigCount++;
-        else smallCount++;
-      });
-      
-      const total = bigCount + smallCount;
-      const bigPercent = ((bigCount / total) * 100).toFixed(1);
-      const smallPercent = ((smallCount / total) * 100).toFixed(1);
-      
-      const chartUrl = generateTrxChartUrl(bigCount, smallCount);
-      
-      const caption = 
-        `📊 *TRX Recent Results (Last ${total})*\n` +
-        `📅 Date: ${new Date().toISOString().split('T')[0]}\n\n` +
-        `🟢 BIG: ${bigCount} (${bigPercent}%)\n` +
-        `🔴 SMALL: ${smallCount} (${smallPercent}%)\n` +
-        `Total: ${total}`;
-        
-      try {
-        await ctx.replyWithPhoto(chartUrl, {
-          caption: caption,
-          parse_mode: 'Markdown',
-          reply_markup: makeMainKeyboard(true, isAdminUser).reply_markup
-        });
-      } catch (imgError) {
-        logging.error(`Chart image send error: ${imgError.message}`);
-        await sendMessageWithRetry(ctx, caption, makeMainKeyboard(true, isAdminUser));
-      }
-      
-    } catch (error) {
-      logging.error(`TRX Checker error: ${error.message}`);
-      await sendMessageWithRetry(ctx, `${EMOJI.ERROR} Error fetching TRX checker data.`, makeMainKeyboard(true, isAdminUser));
-    }
+    await sendMessageWithRetry(ctx, reportMessage, makeMainKeyboard(true, isAdminUser));
     return;
   }
   
@@ -4861,7 +4869,15 @@ async function textMessageHandler(ctx) {
         }
         
         if (!userStats[userId]) {
-          userStats[userId] = { start_balance: parseFloat(balance || 0), profit: 0.0 };
+          userStats[userId] = { 
+            start_balance: parseFloat(balance || 0), 
+            profit: 0.0,
+            daily_date: new Date().toDateString(),
+            daily_wins: 0,
+            daily_losses: 0,
+            daily_profit: 0,
+            daily_start_balance: 0
+          };
         }
         
         const balanceDisplay = balance !== null ? balance : 0.0;
