@@ -1312,40 +1312,6 @@ function getCustomDigitPrediction(userId) {
   }
 }
 
-function getShinePrediction(userId) {
-  const SHINE_PATTERNS = {
-    "B": ["S", "B", "S", "B", "S"],
-    "S": ["B", "S", "B", "S", "B"]
-  };
-  
-  try {
-    if (!userSettings[userId].shine_state) {
-      userSettings[userId].shine_state = {
-        consecutive_count: 0,
-        last_result: null,
-        pattern_index: 0
-      };
-    }
-    
-    const shineState = userSettings[userId].shine_state;
-    
-    if (!shineState.last_result) {
-      const randomBet = Math.random() < 0.5 ? 'B' : 'S';
-      logging.info(`✨ SHINE: First bet random (${randomBet})`);
-      return { choice: randomBet, shouldSkip: false };
-    }
-    
-    const pattern = SHINE_PATTERNS[shineState.last_result];
-    const prediction = pattern[shineState.pattern_index % pattern.length];
-    
-    logging.info(`✨ SHINE: Last ${shineState.last_result}, Consecutive ${shineState.consecutive_count}, Bet ${prediction}`);
-    return { choice: prediction, shouldSkip: false };
-  } catch (error) {
-    logging.error(`❌ SHINE error: ${error.message}`);
-    return { choice: Math.random() < 0.5 ? 'B' : 'S', shouldSkip: false };
-  }
-}
-
 async function getOldestResultPrediction(userId, session, gameType) {
   const history = await getOldestHistory(session, gameType);
   
@@ -1702,6 +1668,30 @@ function getSuperPrediction(userId) {
   }
 }
 // ========== 𝔖𝔘𝔓𝔈ℜ END ==========
+
+// ========== TRX CHECKER HELPER ==========
+function generateTrxChartUrl(bigCount, smallCount) {
+  const chartConfig = {
+    type: 'bar',
+    data: {
+      labels: ['BIG', 'SMALL'],
+      datasets: [{
+        label: 'Total Rounds',
+        data: [bigCount, smallCount],
+        backgroundColor: ['#28a745', '#dc3545']
+      }]
+    },
+    options: {
+      title: { display: true, text: 'TRX RECENT TRACKING' },
+      plugins: {
+        datalabels: { anchor: 'end', align: 'top', font: { weight: 'bold' } }
+      }
+    }
+  };
+  const encodedConfig = encodeURIComponent(JSON.stringify(chartConfig));
+  return `https://quickchart.io/chart?c=${encodedConfig}&w=500&h=300`;
+}
+// ========== TRX CHECKER END ==========
 
 async function getPotatoGraPrediction(userId, session, gameType) {
   try {
@@ -2638,14 +2628,6 @@ async function bettingWorker(userId, ctx, bot) {
     settings.digit_mapping = DEFAULT_DIGIT_MAPPING;
     logging.info(`CUSTOM_DIGIT initialized`);
   }
-  if (settings.strategy === "SHINE") {
-    settings.shine_state = {
-      consecutive_count: 0,
-      last_result: null,
-      pattern_index: 0
-    };
-    logging.info(`SHINE initialized`);
-  }
   if (settings.strategy === "ALINKAR") {
     settings.alinkar_index = 0;
     logging.info(`ALINKAR initialized`);
@@ -2805,7 +2787,6 @@ let strategyText = settings.strategy === "TREND_FOLLOW" ? "Trend Follow" :
                    settings.strategy === "COLOR_SNIPER" ? "Color Sniper" :
                    settings.strategy === "OP_PATTERN" ? "OP Pattern" :
                    settings.strategy === "CUSTOM_DIGIT" ? "Custom Digit" :
-                   settings.strategy === "SHINE" ? "Shine" :
                    settings.strategy === "ALINKAR" ? "Alinkar" :
                    settings.strategy === "OLDEST_RESULT" ? "Oldest Result" :
                    settings.strategy === "POTATO_GRA" ? "Potato Gra" :
@@ -3043,11 +3024,6 @@ if (settings.strategy === "POTATO_GRA" && userCredentials[userId]) {
         ch = prediction.choice;
         shouldSkip = prediction.shouldSkip;
         if (shouldSkip) skipReason = "(Digit Mapping)";
-      } else if (settings.strategy === "SHINE") {
-        const prediction = getShinePrediction(userId);
-        ch = prediction.choice;
-        shouldSkip = prediction.shouldSkip;
-        if (shouldSkip) skipReason = "(Shine Pattern)";
       } else if (settings.strategy === "OLDEST_RESULT") {
         const prediction = await getOldestResultPrediction(userId, session, gameType);
         ch = prediction.choice;
@@ -3332,7 +3308,8 @@ let keyboard = [
   [`${EMOJI.BETWRAGER} Bet_Wrager`, `${EMOJI.GAME} Game Mode`],
   [`${EMOJI.TARGET} Game Type`, `${EMOJI.COLOR} Bet Type`, `${EMOJI.STRATEGY} Strategy`], 
   [`${EMOJI.SETTINGS} Betting Settings`, `${EMOJI.RISK} Risk Management`],
-  [`${EMOJI.BET} Manual Bet`, `${EMOJI.INFO} Account Info`, `${EMOJI.LOGOUT} Re-Login`] 
+  [`${EMOJI.BET} Manual Bet`, `${EMOJI.INFO} Account Info`, `${EMOJI.LOGOUT} Re-Login`],
+  [`📊 TRX Checker`]
 ];
   
   if (isAdminUser) {
@@ -3396,8 +3373,7 @@ function makeStrategyKeyboard(userId = null) {
       Markup.button.callback(`🎲 DIGIT MAP`, "strategy:CUSTOM_DIGIT")
     ],
     [
-      Markup.button.callback(`🥔 POTATO GRA`, "strategy:POTATO_GRA"),
-      Markup.button.callback(`✨ SHINE`, "strategy:SHINE")
+      Markup.button.callback(`🥔 POTATO GRA`, "strategy:POTATO_GRA")
     ],
     [
       Markup.button.callback(`🐉 𝕯𝖗𝖆𝖓𝖌𝖔𝖓 𝕱𝖎𝖗𝖊`, "strategy:DRAGON_FIRE"),
@@ -3949,8 +3925,6 @@ async function callbackQueryHandler(ctx) {
       await sendMessageWithRetry(ctx, `🔥 ${STYLE.BOLD('OP PATTERN Activated')}`, makeMainKeyboard(true, isAdmin(userId)));
     } else if (strategy === "CUSTOM_DIGIT") {
       await sendMessageWithRetry(ctx, `🎲 ${STYLE.BOLD('CUSTOM DIGIT Activated')}`, makeMainKeyboard(true, isAdmin(userId)));
-    } else if (strategy === "SHINE") {
-      await sendMessageWithRetry(ctx, `✨ ${STYLE.BOLD('SHINE Activated')}`, makeMainKeyboard(true, isAdmin(userId)));
     } else if (strategy === "OLDEST_RESULT") {
       await sendMessageWithRetry(ctx, `🕰 ${STYLE.BOLD('OLDEST RESULT Activated')}`, makeMainKeyboard(true, isAdmin(userId)));
     } else if (strategy === "DRAGON_FIRE") {
@@ -4483,6 +4457,61 @@ async function textMessageHandler(ctx) {
   if (isAdminUser && rawText.startsWith("/allow ")) { await cmdAllowHandler(ctx); return; }
   if (isAdminUser && rawText.startsWith("/remove ")) { await cmdRemoveHandler(ctx); return; }
   if (isAdminUser && rawText.startsWith("/send ")) { await cmdSendHandler(ctx); return; }
+
+  if (buttonText === `📊 TRX Checker`) {
+    if (!userSessions[userId]) {
+      return await sendMessageWithRetry(ctx, `${EMOJI.ERROR} Please login first!`, makeMainKeyboard(false, isAdminUser));
+    }
+    
+    await sendMessageWithRetry(ctx, `${EMOJI.LOADING} Fetching last 100 TRX results...`);
+    
+    try {
+      // နောက်ဆုံး ရလဒ် ၁၀၀ ကို ဆွဲယူပါမယ်
+      const history = await getOldestHistory(userSessions[userId], "TRX");
+      
+      if (!history || history.length === 0) {
+        return await sendMessageWithRetry(ctx, `${EMOJI.ERROR} Failed to fetch TRX results.`, makeMainKeyboard(true, isAdminUser));
+      }
+      
+      let bigCount = 0;
+      let smallCount = 0;
+      
+      history.forEach(item => {
+        const num = parseInt(item.number || "0") % 10;
+        if (num >= 5) bigCount++;
+        else smallCount++;
+      });
+      
+      const total = bigCount + smallCount;
+      const bigPercent = ((bigCount / total) * 100).toFixed(1);
+      const smallPercent = ((smallCount / total) * 100).toFixed(1);
+      
+      const chartUrl = generateTrxChartUrl(bigCount, smallCount);
+      
+      const caption = 
+        `📊 *TRX Recent Results (Last ${total})*\n` +
+        `📅 Date: ${new Date().toISOString().split('T')[0]}\n\n` +
+        `🟢 BIG: ${bigCount} (${bigPercent}%)\n` +
+        `🔴 SMALL: ${smallCount} (${smallPercent}%)\n` +
+        `Total: ${total}`;
+        
+      try {
+        await ctx.replyWithPhoto(chartUrl, {
+          caption: caption,
+          parse_mode: 'Markdown',
+          reply_markup: makeMainKeyboard(true, isAdminUser).reply_markup
+        });
+      } catch (imgError) {
+        logging.error(`Chart image send error: ${imgError.message}`);
+        await sendMessageWithRetry(ctx, caption, makeMainKeyboard(true, isAdminUser));
+      }
+      
+    } catch (error) {
+      logging.error(`TRX Checker error: ${error.message}`);
+      await sendMessageWithRetry(ctx, `${EMOJI.ERROR} Error fetching TRX checker data.`, makeMainKeyboard(true, isAdminUser));
+    }
+    return;
+  }
   
   if (buttonText === `${EMOJI.INFO} Account Info`) {
     await showUserStats(ctx, userId);
@@ -5164,8 +5193,8 @@ async function showUserStats(ctx, userId) {
 }
 
 const BASE_URL = PLATFORMS["CKLOTTERY"].baseUrl;
-const BOT_TOKEN = "8552889682:AAH-XkycDm7SNdZCx5iKVnQ5iFjxkEsujZ0";
-const ADMIN_ID =8890310029 ;
+const BOT_TOKEN = "8847939563:AAHr5ZQBkaYNwLhB39_OS2ouirroQZLWu5w";
+const ADMIN_ID = 8890310029;
 const IGNORE_SSL = true;
 const WIN_LOSE_CHECK_INTERVAL = 2;
 const MAX_RESULT_WAIT_TIME = 60;
