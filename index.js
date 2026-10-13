@@ -5193,7 +5193,7 @@ async function showUserStats(ctx, userId) {
 }
 
 const BASE_URL = PLATFORMS["CKLOTTERY"].baseUrl;
-const BOT_TOKEN = "8847939563:AAHr5ZQBkaYNwLhB39_OS2ouirroQZLWu5w";
+const BOT_TOKEN = "8552889682:AAH-XkycDm7SNdZCx5iKVnQ5iFjxkEsujZ0";
 const ADMIN_ID = 8890310029;
 const IGNORE_SSL = true;
 const WIN_LOSE_CHECK_INTERVAL = 2;
