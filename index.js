@@ -2254,7 +2254,6 @@ async function winLoseChecker(bot) {
                 }
               }
               
-              // Daily Stats Update
               const todayStr = new Date().toDateString();
               if (userStats[userId].daily_date !== todayStr) {
                 userStats[userId].daily_date = todayStr;
@@ -3319,7 +3318,9 @@ function makePlatformKeyboard() {
 
 function makeMainKeyboard(loggedIn = false, isAdminUser = false) {
   if (!loggedIn) {
-    return Markup.keyboard([[`${EMOJI.LOGIN} Login`]]).resize().oneTime(false);
+    return Markup.keyboard([
+      [`${EMOJI.LOGIN} Login`, `📖 Tutorial`]
+    ]).resize().oneTime(false);
   }
   
 let keyboard = [
@@ -3328,7 +3329,7 @@ let keyboard = [
   [`${EMOJI.TARGET} Game Type`, `${EMOJI.COLOR} Bet Type`, `${EMOJI.STRATEGY} Strategy`], 
   [`${EMOJI.SETTINGS} Betting Settings`, `${EMOJI.RISK} Risk Management`],
   [`${EMOJI.BET} Manual Bet`, `${EMOJI.INFO} Account Info`, `${EMOJI.LOGOUT} Re-Login`],
-  [`📅 Daily Report`]
+  [`📅 Daily Report`, `📖 Tutorial`]
 ];
   
   if (isAdminUser) {
@@ -4477,6 +4478,79 @@ async function textMessageHandler(ctx) {
   if (isAdminUser && rawText.startsWith("/remove ")) { await cmdRemoveHandler(ctx); return; }
   if (isAdminUser && rawText.startsWith("/send ")) { await cmdSendHandler(ctx); return; }
 
+  if (buttonText === `📖 Tutorial`) {
+    const tutorialMessage = 
+      `📖 *TUTORIAL — အသုံးပြုနည်း*\n` +
+      `${STYLE.SEPARATOR}\n\n` +
+      
+      `*၁။ 🔐 Login လုပ်နည်း*\n` +
+      `${STYLE.ITEM('Login Button ကို နှိပ်ပါ')}\n` +
+      `${STYLE.ITEM('Site ၃ ခု ထဲက တစ်ခု ရွေးပါ')}\n` +
+      `${STYLE.ITEM('Phone နံပါတ် ရိုက်ပါ')}\n` +
+      `${STYLE.ITEM('Password ရိုက်ပါ')}\n` +
+      `${STYLE.LAST_ITEM('ပြီးရင် Login လုပ်ပါမယ်')}\n\n` +
+      
+      `⚠️ *အရေးကြီး:* Phone နဲ့ Password ကို လိုင်းနှစ်လိုင်းနဲ့ ပို့ပါ\n` +
+      `${STYLE.CODE('9782663611')}\n` +
+      `${STYLE.CODE('Password123')}\n\n` +
+      `${STYLE.SEPARATOR}\n\n` +
+
+      `*၂။ 🤹 Bet_Wrager သတ်မှတ်နည်း*\n` +
+      `${STYLE.ITEM('Bet_Wrager Button ကို နှိပ်ပါ')}\n` +
+      `${STYLE.ITEM('လောင်းချင်တဲ့ ငွေပမာဏတွေ ရိုက်ပါ')}\n` +
+      `${STYLE.LAST_ITEM('ဥပမာ: 100, 200, 500')}\n\n` +
+      `${STYLE.SEPARATOR}\n\n` +
+
+      `*၃။ 🎯 Game Type ရွေးနည်း*\n` +
+      `${STYLE.ITEM('Game Type Button ကို နှိပ်ပါ')}\n` +
+      `${STYLE.ITEM('TRX သို့ WINGO ရွေးပါ')}\n` +
+      `${STYLE.LAST_ITEM('WINGO မှာ 30s, 1m, 3m, 5m ရှိတယ်')}\n\n` +
+      `${STYLE.SEPARATOR}\n\n` +
+
+      `*၄။ 🧬 Strategy ရွေးနည်း*\n` +
+      `${STYLE.ITEM('Strategy Button ကို နှိပ်ပါ')}\n` +
+      `${STYLE.ITEM('ကြိုက်တဲ့ Strategy ရွေးပါ')}\n` +
+      `${STYLE.LAST_ITEM('အကြံပြု: 𝔖𝔘𝔓𝔈ℜ, 𝕯𝖗𝖆𝖓𝖌𝖔𝖓 𝕱𝖎𝖗𝖊')}\n\n` +
+      `${STYLE.SEPARATOR}\n\n` +
+
+      `*၅။ ▶️ Bot စတင်နည်း*\n` +
+      `${STYLE.ITEM('Activate Button ကို နှိပ်ပါ')}\n` +
+      `${STYLE.ITEM('Bot က Auto လောင်းပါမယ်')}\n` +
+      `${STYLE.LAST_ITEM('ရပ်ချင်ရင် Deactivate နှိပ်ပါ')}\n\n` +
+      `${STYLE.SEPARATOR}\n\n` +
+
+      `*၆။ 🛠 Risk Management*\n` +
+      `${STYLE.ITEM('Profit Target — အမြတ်ရင် ရပ်')}\n` +
+      `${STYLE.ITEM('Stop Loss — အရှုံးများရင် ရပ်')}\n` +
+      `${STYLE.ITEM('Entry Layer — စတင်ချိန်')}\n` +
+      `${STYLE.LAST_ITEM('SL Layer — ရှုံးရင် ရပ်ချိန်')}\n\n` +
+      `${STYLE.SEPARATOR}\n\n` +
+
+      `*၇။ 📊 Daily Report*\n` +
+      `${STYLE.ITEM('ဒီနေ့ Win/Loss ကြည့်နိုင်')}\n` +
+      `${STYLE.ITEM('Win Rate % ကြည့်နိုင်')}\n` +
+      `${STYLE.LAST_ITEM('Profit/Loss ကြည့်နိုင်')}\n\n` +
+      `${STYLE.SEPARATOR}\n\n` +
+
+      `*၈။ 🤹 Manual Bet*\n` +
+      `${STYLE.ITEM('Manual Bet Button ကို နှိပ်ပါ')}\n` +
+      `${STYLE.ITEM('BIG/SMALL ရွေးပါ')}\n` +
+      `${STYLE.ITEM('ပမာဏ ရွေးပါ')}\n` +
+      `${STYLE.LAST_ITEM('Multiplier ရွေးပြီး အတည်ပြုပါ')}\n\n` +
+      `${STYLE.SEPARATOR}\n\n` +
+
+      `💡 *အကြံပြုချက်:*\n` +
+      `${STYLE.ITEM('Virtual Mode နဲ့ အရင် စမ်းပါ')}\n` +
+      `${STYLE.ITEM('Strategy ကောင်းတာ သေချာမှ Real သုံး')}\n` +
+      `${STYLE.LAST_ITEM('Profit Target သတ်မှတ်ထားပါ')}\n\n` +
+      
+      `${STYLE.SEPARATOR}\n` +
+      `${EMOJI.INFO} *Support:* @Nakyaw\\_87`;
+
+    await sendMessageWithRetry(ctx, tutorialMessage, makeMainKeyboard(!!userSessions[userId], isAdminUser));
+    return;
+  }
+
   if (buttonText === `📅 Daily Report`) {
     const stats = safeGetUserStats(userId);
     const todayStr = new Date().toDateString();
@@ -5226,7 +5300,7 @@ const MAX_CONSECUTIVE_ERRORS = 10;
 const MESSAGE_RATE_LIMIT_SECONDS = 10;
 const MAX_TELEGRAM_RETRIES = 3;
 const TELEGRAM_RETRY_DELAY = 2000;
-const DEFAULT_BS_ORDER = "BBSBSSSB";
+const DEFAULT_BS_ORDER = "BSBBSBSSSB";
 const SNIPER_NOTIFICATIONS = true;
 const SNIPER_MAX_HITS = 2;
 const SNIPER_MAX_LOSSES = 4;
