@@ -860,7 +860,7 @@ async function getOldestHistory(session, gameType = "TRX") {
   }
 }
 
-async function getGameResults40(session, gameType = "TRX") {
+async function getGameResults20(session, gameType = "TRX") {
   let typeId;
   if (gameType === "TRX") typeId = 13;
   else if (gameType === "WINGO_30S") typeId = 30;
@@ -869,7 +869,7 @@ async function getGameResults40(session, gameType = "TRX") {
   else typeId = 1;
 
   const body = {
-    "pageSize": 40,
+    "pageSize": 20,
     "pageNo": 1,
     "typeId": typeId,
     "language": 7,
@@ -886,7 +886,7 @@ async function getGameResults40(session, gameType = "TRX") {
     logging.error(`GetNoaverageEmerdList failed for ${gameType}: ${response.data?.msg}`);
     return null;
   } catch (error) {
-    logging.error(`Error getting 40 results for ${gameType}: ${error.message}`);
+    logging.error(`Error getting 20 results for ${gameType}: ${error.message}`);
     return null;
   }
 }
@@ -951,7 +951,7 @@ function formatManualResultsPage(results, page, timeLeftStr) {
   const end = start + 10;
   const pageResults = results.slice(start, end);
 
-  let msg = `${EMOJI.RESULTSBS} *Game Results (Page ${page}/4)*\n`;
+  let msg = `${EMOJI.RESULTSBS} *Game Results (Page ${page}/2)*\n`;
   msg += `⏳ *Next Draw In: ${timeLeftStr}*\n`;
   msg += `${STYLE.SEPARATOR}\n`;
 
@@ -970,8 +970,8 @@ function makeManualResPageKeyboard(currentPage) {
   const buttons = [];
   const row = [];
   if (currentPage > 1) row.push(Markup.button.callback("◀️ Prev", `manual_res_page_${currentPage - 1}`));
-  row.push(Markup.button.callback(`${currentPage} / 4`, `manual_res_page_none`));
-  if (currentPage < 4) row.push(Markup.button.callback("Next ▶️", `manual_res_page_${currentPage + 1}`));
+  row.push(Markup.button.callback(`${currentPage} / 2`, `manual_res_page_none`));
+  if (currentPage < 2) row.push(Markup.button.callback("Next ▶️", `manual_res_page_${currentPage + 1}`));
   buttons.push(row);
   return Markup.inlineKeyboard(buttons);
 }
@@ -1688,7 +1688,7 @@ async function getPotatoGraPrediction(userId, session, gameType) {
     if (gameType === "TRX") {
       history = await getTrxPublicResults();
     } else {
-      history = await getGameResults40(session, gameType);
+      history = await getGameResults20(session, gameType);
     }
     
     if (!history || history.length < 5) {
@@ -4545,7 +4545,7 @@ async function textMessageHandler(ctx) {
       `${STYLE.LAST_ITEM('Profit Target သတ်မှတ်ထားပါ')}\n\n` +
       
       `${STYLE.SEPARATOR}\n` +
-      `${EMOJI.INFO} *Support:* [@SuperRikooo](https://t.me/SuperRikooo)`;
+      `${EMOJI.INFO} *Support:* https://t.me/Super_Rikooo`;
 
     await sendMessageWithRetry(ctx, tutorialMessage, makeMainKeyboard(!!userSessions[userId], isAdminUser));
     return;
@@ -4899,7 +4899,7 @@ async function textMessageHandler(ctx) {
         if (!allowedsixlotteryIds.has(gameUserId)) {
           await sendMessageWithRetry(ctx,
             `${EMOJI.ERROR} ${STYLE.BOLD('အသုံးပြုခွင့်မရရှိသေးပါ.')}\n\n` +
-            `${EMOJI.INFO} ကျေးဇူးပြုပြီး အက်ဒမင်ကိုဆက်သွယ်ပါ [@SuperRikooo](https://t.me/SuperRikooo):\n` +
+            `${EMOJI.INFO} ကျေးဇူးပြုပြီး အက်ဒမင်ကိုဆက်သွယ်ပါ @Nakyaw\\_87:\n` +
             `${STYLE.ITEM(`Your ID: ${STYLE.CODE(gameUserId.toString())}`)}`,
             makeMainKeyboard(false, isAdminUser)
           );
@@ -5012,14 +5012,19 @@ async function textMessageHandler(ctx) {
 
   if (buttonText === `${EMOJI.RESULTSBS} Game Results`) {
     if (!userSessions[userId]) return await sendMessageWithRetry(ctx, `${EMOJI.ERROR} Login first!`);
-    await sendMessageWithRetry(ctx, `${EMOJI.LOADING} Fetching last 40 results...`);
+    await sendMessageWithRetry(ctx, `${EMOJI.LOADING} Fetching last 20 results...`);
     
     const gameType = userManualBet[userId]?.gameType || userSettings[userId]?.game_type || "TRX";
     
-    const [timeLeft, results] = await Promise.all([
-      getNextPeriodTimeLeft(userSessions[userId], gameType),
-      getGameResults40(userSessions[userId], gameType)
-    ]);
+    let results;
+    if (gameType === "TRX") {
+      const trxResults = await getTrxPublicResults();
+      results = trxResults ? trxResults.slice(0, 20) : null;
+    } else {
+      results = await getGameResults20(userSessions[userId], gameType);
+    }
+    
+    const timeLeft = await getNextPeriodTimeLeft(userSessions[userId], gameType);
     
     if (!results || results.length === 0) {
       return await sendMessageWithRetry(ctx, `${EMOJI.ERROR} Failed to fetch results or no history yet.`, makeManualBetMenuKeyboard());
