@@ -728,8 +728,9 @@ async function placeBetRequest(session, issueNumber, selectType, unitAmount, bet
   }
   
   const settings = userSettings[userId] || {};
-  const betType = settings.bet_type || "BS";
-  const actualGameType = betType === "COLOR" ? 0 : 2;
+  const isColorBet = [10, 11, 12].includes(parseInt(selectType));
+  const betType = isColorBet ? "COLOR" : (settings.bet_type || "BS");
+  const actualGameType = isColorBet ? 0 : 2;
   
   if (!selectType || isNaN(selectType)) {
     logging.error(`Invalid selectType: ${selectType} for user ${userId}`);
@@ -1717,64 +1718,6 @@ async function getPotatoGraPrediction(userId, session, gameType) {
   }
 }
 
-async function handleSniperHit(userId, strategyName, bot, isWin) {
-  const settings = userSettings[userId] || {};
-  
-  if (!settings.sniper_hit_count) {
-    settings.sniper_hit_count = 0;
-  }
-  
-  if (!settings.sniper_loss_count) {
-    settings.sniper_loss_count = 0;
-  }
-  
-  if (isWin) {
-    settings.sniper_hit_count++;
-    settings.sniper_loss_count = 0;
-    
-    if (SNIPER_NOTIFICATIONS) {
-      const hitNotification = `🎯 ${STYLE.BOLD(`${strategyName} HIT!`)} 🎯\n` +
-                            `${STYLE.SEPARATOR}\n` +
-                            `${STYLE.ITEM(`Hit Count: ${settings.sniper_hit_count}/${SNIPER_MAX_HITS}`)}\n` +
-                            `${STYLE.ITEM(`Loss Count: ${settings.sniper_loss_count}/${SNIPER_MAX_LOSSES}`)}\n` +
-                            `${STYLE.LAST_ITEM(`Strategy: ${strategyName}`)}`;
-      
-      try {
-        await bot.telegram.sendMessage(userId, hitNotification, { parse_mode: 'Markdown' });
-      } catch (error) {
-        logging.error(`Failed to send sniper notification to ${userId}: ${error.message}`);
-      }
-    }
-    
-    if (settings.sniper_hit_count >= SNIPER_MAX_HITS) {
-      await terminateSniperSession(userId, strategyName, bot, true);
-      return true;
-    }
-  } else {
-    settings.sniper_loss_count++;
-    if (SNIPER_NOTIFICATIONS) {
-      const lossNotification = `❌ ${STYLE.BOLD(`${strategyName} LOSS!`)} ❌\n` +
-                              `${STYLE.SEPARATOR}\n` +
-                              `${STYLE.ITEM(`Hit Count: ${settings.sniper_hit_count}/${SNIPER_MAX_HITS}`)}\n` +
-                              `${STYLE.ITEM(`Loss Count: ${settings.sniper_loss_count}/${SNIPER_MAX_LOSSES}`)}\n` +
-                              `${STYLE.LAST_ITEM(`Strategy: ${strategyName}`)}`;
-      
-      try {
-        await bot.telegram.sendMessage(userId, lossNotification, { parse_mode: 'Markdown' });
-      } catch (error) {
-        logging.error(`Failed to send sniper loss notification to ${userId}: ${error.message}`);
-      }
-    }
-    
-    if (settings.sniper_loss_count >= SNIPER_MAX_LOSSES) {
-      await terminateSniperSession(userId, strategyName, bot, false);
-      return true;
-    }
-  }
-  
-  return false;
-}
-
 async function terminateSniperSession(userId, strategyName, bot, isHitTermination) {
   const settings = userSettings[userId] || {};
   
@@ -2500,7 +2443,6 @@ async function winLoseChecker(bot) {
               }
               
               const resultMessage = `${resultText}`;
-                
               
               try {
                 await bot.telegram.sendMessage(userId, resultMessage, { parse_mode: 'Markdown' });
@@ -2528,17 +2470,34 @@ async function winLoseChecker(bot) {
               if (settled && settled.number) {
                 const number = parseInt(settled.number) % 10;
                 const bigSmall = number >= 5 ? "B" : "S";
-                const isWin = (bet.choice === "B" && bigSmall === "B") || (bet.choice === "S" && bigSmall === "S");
+                const color = numberToColor(number);
+                
+                let isWin;
+                if (bet.betType === "COLOR") {
+                  isWin = (bet.choice === color);
+                } else {
+                  isWin = (bet.choice === "B" && bigSmall === "B") || (bet.choice === "S" && bigSmall === "S");
+                }
                 const profit = isWin ? (bet.amount * 0.96) : -bet.amount;
                 
                 bet.status = isWin ? "WIN" : "LOSS";
-                bet.result = `${number}(${bigSmall})`;
+                bet.result = `${number}(${bigSmall}/${color})`;
                 bet.isWin = isWin;
                 bet.profit = profit;
                 
-                const choiceText = bet.choice === 'B' ? 'BIG' : 'SMALL';
+                let choiceText;
+                if (bet.choice === 'B') choiceText = 'BIG';
+                else if (bet.choice === 'S') choiceText = 'SMALL';
+                else if (bet.choice === 'G') choiceText = 'GREEN 🟢';
+                else if (bet.choice === 'R') choiceText = 'RED 🔴';
+                else if (bet.choice === 'V') choiceText = 'VIOLET 🟣';
+                else choiceText = bet.choice;
+                
                 const gameId = `${EMOJI.GAME} ${escapeMarkdown(gameType)} : ${bet.period}`;
-                const resultText = `${EMOJI.RESULT} Result: ${number} → ${bigSmall === 'B' ? 'Big' : 'Small'}`;
+                const colorEmoji = color === 'G' ? '🟢' : color === 'R' ? '🔴' : '🟣';
+                const resultText = bet.betType === "COLOR"
+                  ? `${EMOJI.RESULT} Result: ${number} ${colorEmoji} ${getColorName(color)}`
+                  : `${EMOJI.RESULT} Result: ${number} → ${bigSmall === 'B' ? 'Big' : 'Small'}`;
                 
                 let message;
                 if (isWin) {
@@ -3258,8 +3217,6 @@ if (settings.strategy === "POTATO_GRA" && userCredentials[userId]) {
       delete settings.time_warp_pos;
     }
 
-    
-    
     if (settings.strategy === "TREND_FOLLOW") {
       delete settings.trend_state;
       delete settings.color_trend_state;
@@ -3493,6 +3450,7 @@ function makeModeSelectionKeyboard() {
 function makeManualBetMenuKeyboard() {
   return Markup.keyboard([
     [`${EMOJI.RESULT} BIG`, `${EMOJI.RESULT} SMALL`],
+    [`🟢 GREEN`, `🔴 RED`, `🟣 VIOLET`],
     [`${EMOJI.RESULTSBS} Game Results`, `${EMOJI.BET} My Bets`],
     [`${EMOJI.BALANCE} My Balance`, `${EMOJI.GAME} Game Type`],
     [`${EMOJI.BACK} Back`]
@@ -3515,7 +3473,14 @@ function makeManualMultiplierKeyboard(choice, amount) {
 
 function makeManualConfirmKeyboard(choice, amount, multiplier) {
   const total = amount * multiplier;
-  const choiceText = choice === 'B' ? 'BIG' : 'SMALL';
+  let choiceText;
+  if (choice === 'B') choiceText = 'BIG';
+  else if (choice === 'S') choiceText = 'SMALL';
+  else if (choice === 'G') choiceText = 'GREEN 🟢';
+  else if (choice === 'R') choiceText = 'RED 🔴';
+  else if (choice === 'V') choiceText = 'VIOLET 🟣';
+  else choiceText = choice;
+
   return Markup.inlineKeyboard([
     [Markup.button.callback(`✅ YES (Bet ${total} on ${choiceText})`, `manual_confirm_${choice}_${amount}_${multiplier}`)],
     [Markup.button.callback("❌ CANCEL", `manual_cancel`)]
@@ -3838,7 +3803,6 @@ async function callbackQueryHandler(ctx) {
       settings.time_warp_pos = 8;
     }
 
-        
     if (settings.strategy === "POTATO_GRA") {     
       settings.potato_gra_last_login = Date.now(); 
     }       
@@ -4163,19 +4127,35 @@ async function callbackQueryHandler(ctx) {
     const amount = parseInt(parts[3]);
     const multiplier = parseInt(parts[4]);
     const totalAmount = amount * multiplier;
-    const choiceText = choice === 'B' ? 'BIG' : 'SMALL';
+    const isColorChoice = ['G', 'R', 'V'].includes(choice);
+    const betTypeForThisBet = isColorChoice ? "COLOR" : "BS";
+    
+    let choiceText;
+    if (choice === 'B') choiceText = 'BIG';
+    else if (choice === 'S') choiceText = 'SMALL';
+    else if (choice === 'G') choiceText = 'GREEN 🟢';
+    else if (choice === 'R') choiceText = 'RED 🔴';
+    else if (choice === 'V') choiceText = 'VIOLET 🟣';
+    else choiceText = choice;
+
     const gameType = userManualBet[userId]?.gameType || userSettings[userId]?.game_type || "TRX";
     const settings = userSettings[userId] || {};
     const isVirtual = settings.virtual_mode || false;
     
     await safeDeleteMessage(ctx);
 
-    const selectType = getSelectMap(gameType, "BS")[choice];
+    const selectType = getSelectMap(gameType, betTypeForThisBet)[choice];
     const { unitAmount, betCount, actualAmount } = computeBetDetails(totalAmount);
     
     if (isVirtual) {
       const resultNum = Math.floor(Math.random() * 10);
-      const isWin = (choice === 'B' && resultNum >= 5) || (choice === 'S' && resultNum < 5);
+      const resultColor = numberToColor(resultNum);
+      let isWin;
+      if (isColorChoice) {
+        isWin = (choice === resultColor);
+      } else {
+        isWin = (choice === 'B' && resultNum >= 5) || (choice === 'S' && resultNum < 5);
+      }
       const resultBS = resultNum >= 5 ? "B" : "S";
       const profit = isWin ? (actualAmount * 0.96) : -actualAmount;
 
@@ -4186,12 +4166,24 @@ async function callbackQueryHandler(ctx) {
       }
 
       if (!userManualBets[userId]) userManualBets[userId] = [];
-      userManualBets[userId].push({ choice, amount: actualAmount, result: `${resultNum}(${resultBS})`, isWin, profit });
+      userManualBets[userId].push({ 
+        choice, 
+        betType: betTypeForThisBet, 
+        amount: actualAmount, 
+        result: `${resultNum}(${resultBS}/${resultColor})`, 
+        isWin, 
+        profit 
+      });
       if (userManualBets[userId].length > 20) userManualBets[userId] = userManualBets[userId].slice(-20);
 
+      const colorEmoji = resultColor === 'G' ? '🟢' : resultColor === 'R' ? '🔴' : '🟣';
+      const resultLine = isColorChoice 
+        ? `Result: ${resultNum} ${colorEmoji} ${getColorName(resultColor)}`
+        : `Result: ${resultNum} (${resultBS})`;
+      
       const msg = isWin 
-        ? `${EMOJI.WIN} *VICTORY!* +${(actualAmount * 0.96).toFixed(2)} Ks\n${STYLE.SEPARATOR}\nBet: ${choiceText} | Result: ${resultNum} (${resultBS})`
-        : `${EMOJI.LOSS} *LOSS* -${actualAmount.toFixed(2)} Ks\n${STYLE.SEPARATOR}\nBet: ${choiceText} | Result: ${resultNum} (${resultBS})`;
+        ? `${EMOJI.WIN} *VICTORY!* +${(actualAmount * 0.96).toFixed(2)} Ks\n${STYLE.SEPARATOR}\nBet: ${choiceText} | ${resultLine}`
+        : `${EMOJI.LOSS} *LOSS* -${actualAmount.toFixed(2)} Ks\n${STYLE.SEPARATOR}\nBet: ${choiceText} | ${resultLine}`;
 
       await sendMessageWithRetry(ctx, msg, makeManualBetMenuKeyboard());
     } else {
@@ -4213,7 +4205,8 @@ async function callbackQueryHandler(ctx) {
       userManualBets[userId].push({
         status: "PENDING",
         period: currentIssue,
-        choice, 
+        choice,
+        betType: betTypeForThisBet,
         amount: actualAmount,
         result: null, 
         isWin: null, 
@@ -4534,7 +4527,7 @@ async function textMessageHandler(ctx) {
 
       `*၈။ 🤹 Manual Bet*\n` +
       `${STYLE.ITEM('Manual Bet Button ကို နှိပ်ပါ')}\n` +
-      `${STYLE.ITEM('BIG/SMALL ရွေးပါ')}\n` +
+      `${STYLE.ITEM('BIG/SMALL (သို့) Color ရွေးပါ')}\n` +
       `${STYLE.ITEM('ပမာဏ ရွေးပါ')}\n` +
       `${STYLE.LAST_ITEM('Multiplier ရွေးပြီး အတည်ပြုပါ')}\n\n` +
       `${STYLE.SEPARATOR}\n\n` +
@@ -4545,7 +4538,7 @@ async function textMessageHandler(ctx) {
       `${STYLE.LAST_ITEM('Profit Target သတ်မှတ်ထားပါ')}\n\n` +
       
       `${STYLE.SEPARATOR}\n` +
-      `${EMOJI.INFO} *Support:* https://t.me/Super_Rikooo`;
+      `${EMOJI.INFO} *Support:* @SuperRikooo`;
 
     await sendMessageWithRetry(ctx, tutorialMessage, makeMainKeyboard(!!userSessions[userId], isAdminUser));
     return;
@@ -4899,7 +4892,7 @@ async function textMessageHandler(ctx) {
         if (!allowedsixlotteryIds.has(gameUserId)) {
           await sendMessageWithRetry(ctx,
             `${EMOJI.ERROR} ${STYLE.BOLD('အသုံးပြုခွင့်မရရှိသေးပါ.')}\n\n` +
-            `${EMOJI.INFO} ကျေးဇူးပြုပြီး အက်ဒမင်ကိုဆက်သွယ်ပါ @Nakyaw\\_87:\n` +
+            `${EMOJI.INFO} ကျေးဇူးပြုပြီး အက်ဒမင်ကိုဆက်သွယ်ပါ @SuperRikooo:\n` +
             `${STYLE.ITEM(`Your ID: ${STYLE.CODE(gameUserId.toString())}`)}`,
             makeMainKeyboard(false, isAdminUser)
           );
@@ -4987,7 +4980,7 @@ async function textMessageHandler(ctx) {
     if (buttonText === `${EMOJI.BET} Manual Bet`) {
     if (!await checkUserAuthorized(ctx)) return;
     userManualBet[userId] = { gameType: userSettings[userId]?.game_type || "TRX" };
-    await sendMessageWithRetry(ctx, `${EMOJI.BET} ${STYLE.BOLD('MANUAL BET MODE')}\n\n${EMOJI.INFO} Select BIG or SMALL to start betting.`, makeManualBetMenuKeyboard());
+    await sendMessageWithRetry(ctx, `${EMOJI.BET} ${STYLE.BOLD('MANUAL BET MODE')}\n\n${EMOJI.INFO} Select BIG/SMALL or Color to start betting.`, makeManualBetMenuKeyboard());
     return;
   }
 
@@ -4998,6 +4991,21 @@ async function textMessageHandler(ctx) {
 
   if (buttonText === `${EMOJI.RESULT} SMALL`) {
     await sendMessageWithRetry(ctx, `${EMOJI.RESULT} Selected: *SMALL*\n\n${EMOJI.BALANCE} Select Bet Amount:`, makeManualAmountKeyboard('S'));
+    return;
+  }
+
+  if (buttonText === `🟢 GREEN`) {
+    await sendMessageWithRetry(ctx, `🟢 Selected: *GREEN*\n\n${EMOJI.BALANCE} Select Bet Amount:`, makeManualAmountKeyboard('G'));
+    return;
+  }
+
+  if (buttonText === `🔴 RED`) {
+    await sendMessageWithRetry(ctx, `🔴 Selected: *RED*\n\n${EMOJI.BALANCE} Select Bet Amount:`, makeManualAmountKeyboard('R'));
+    return;
+  }
+
+  if (buttonText === `🟣 VIOLET`) {
+    await sendMessageWithRetry(ctx, `🟣 Selected: *VIOLET*\n\n${EMOJI.BALANCE} Select Bet Amount:`, makeManualAmountKeyboard('V'));
     return;
   }
 
@@ -5045,7 +5053,13 @@ async function textMessageHandler(ctx) {
     
     let msg = `${EMOJI.BET} *My Recent 20 Bets*\n${STYLE.SEPARATOR}\n`;
     bets.slice(-20).reverse().forEach(b => {
-      const choiceText = b.choice === 'B' ? 'BIG' : 'SMALL';
+      let choiceText;
+      if (b.choice === 'B') choiceText = 'BIG';
+      else if (b.choice === 'S') choiceText = 'SMALL';
+      else if (b.choice === 'G') choiceText = 'GREEN';
+      else if (b.choice === 'R') choiceText = 'RED';
+      else if (b.choice === 'V') choiceText = 'VIOLET';
+      else choiceText = b.choice;
       
       if (b.status === "PENDING") {
         msg += `⏳ ${choiceText} | ${b.amount} Ks | Per: ${b.period ? String(b.period).slice(-8) : '...'} | *PENDING*\n`;
