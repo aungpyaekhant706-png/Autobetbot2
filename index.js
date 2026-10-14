@@ -4545,7 +4545,7 @@ async function textMessageHandler(ctx) {
       `${STYLE.LAST_ITEM('Profit Target သတ်မှတ်ထားပါ')}\n\n` +
       
       `${STYLE.SEPARATOR}\n` +
-      `${EMOJI.INFO} *Support:* [@Super_Rikooo](https://t.me/Super_Rikooo)`;
+      `${EMOJI.INFO} *Support:* [@SuperRikooo](https://t.me/SuperRikooo)`;
 
     await sendMessageWithRetry(ctx, tutorialMessage, makeMainKeyboard(!!userSessions[userId], isAdminUser));
     return;
