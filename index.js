@@ -4545,7 +4545,7 @@ async function textMessageHandler(ctx) {
       `${STYLE.LAST_ITEM('Profit Target သတ်မှတ်ထားပါ')}\n\n` +
       
       `${STYLE.SEPARATOR}\n` +
-      `${EMOJI.INFO} *Support:* @Super\_Rikooo`;
+      `${EMOJI.INFO} *Support:* [@Super_Rikooo](https://t.me/Super_Rikooo)`;
 
     await sendMessageWithRetry(ctx, tutorialMessage, makeMainKeyboard(!!userSessions[userId], isAdminUser));
     return;
@@ -4899,7 +4899,7 @@ async function textMessageHandler(ctx) {
         if (!allowedsixlotteryIds.has(gameUserId)) {
           await sendMessageWithRetry(ctx,
             `${EMOJI.ERROR} ${STYLE.BOLD('အသုံးပြုခွင့်မရရှိသေးပါ.')}\n\n` +
-            `${EMOJI.INFO} ကျေးဇူးပြုပြီး အက်ဒမင်ကိုဆက်သွယ်ပါ @Super\_Rikooo:\n` +
+            `${EMOJI.INFO} ကျေးဇူးပြုပြီး အက်ဒမင်ကိုဆက်သွယ်ပါ [@Super_Rikooo](https://t.me/Super_Rikooo):\n` +
             `${STYLE.ITEM(`Your ID: ${STYLE.CODE(gameUserId.toString())}`)}`,
             makeMainKeyboard(false, isAdminUser)
           );
