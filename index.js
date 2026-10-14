@@ -1141,7 +1141,6 @@ function safeGetUserStats(userId) {
     };
     logging.info(`Created userStats for ${userId}`);
   } else if (!userStats[userId].daily_date) {
-    // Migration for existing users
     userStats[userId].daily_date = new Date().toDateString();
     userStats[userId].daily_wins = 0;
     userStats[userId].daily_losses = 0;
@@ -1611,7 +1610,6 @@ function getSuperPrediction(userId) {
       return { choice: 'B', shouldSkip: false };
     }
     
-    // 1. Check last 7 for SUPER strong signal (5+ same)
     if (results.length >= 7) {
       const last7 = results.slice(-7);
       const big7 = last7.filter(r => r === 'B').length;
@@ -1627,7 +1625,6 @@ function getSuperPrediction(userId) {
       }
     }
     
-    // 2. Check last 5 for Reversal (4+ same)
     if (results.length >= 5) {
       const last5 = results.slice(-5);
       const big5 = last5.filter(r => r === 'B').length;
@@ -1643,7 +1640,6 @@ function getSuperPrediction(userId) {
       }
     }
     
-    // 3. Check last 3 for Dragon Fire
     const last3 = results.slice(-3);
     const big3 = last3.filter(r => r === 'B').length;
     const small3 = last3.filter(r => r === 'S').length;
@@ -1657,7 +1653,6 @@ function getSuperPrediction(userId) {
       return { choice: 'S', shouldSkip: false };
     }
     
-    // 4. Weighted Majority (recent = higher weight)
     const last5ForWeight = results.slice(-5);
     let bigScore = 0;
     let smallScore = 0;
@@ -4495,7 +4490,6 @@ async function textMessageHandler(ctx) {
       losses = stats.daily_losses || 0;
       profit = stats.daily_profit || 0;
     } else {
-      // New day, reset
       stats.daily_date = todayStr;
       stats.daily_wins = 0;
       stats.daily_losses = 0;
@@ -4805,6 +4799,14 @@ async function textMessageHandler(ctx) {
     const platform = PLATFORMS[platformKey];
     const phone = lines[0];
     const password = lines[1];
+    
+    // 🔒 Auto Delete Password Message (Security)
+    try {
+      await ctx.deleteMessage();
+      logging.info(`Auto-deleted login credentials message for user ${userId}`);
+    } catch (delErr) {
+      logging.warning(`Could not delete login message: ${delErr.message}`);
+    }
     
     logging.info(`User ${userId} attempted login`);
     activeUsers.add(userId);
@@ -5224,7 +5226,7 @@ const MAX_CONSECUTIVE_ERRORS = 10;
 const MESSAGE_RATE_LIMIT_SECONDS = 10;
 const MAX_TELEGRAM_RETRIES = 3;
 const TELEGRAM_RETRY_DELAY = 2000;
-const DEFAULT_BS_ORDER = "BSBBSBSSSB";
+const DEFAULT_BS_ORDER = "BBSBSSSB";
 const SNIPER_NOTIFICATIONS = true;
 const SNIPER_MAX_HITS = 2;
 const SNIPER_MAX_LOSSES = 4;
@@ -5261,7 +5263,6 @@ function main() {
     logging.error(`❌ Bot failed to start: ${error.message}`);
   });
 
-  // ===== Render Web Service အတွက် HTTP Server =====
   const PORT = process.env.PORT || 3000;
   const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -5270,7 +5271,6 @@ function main() {
   server.listen(PORT, '0.0.0.0', () => {
     logging.info(`🌐 Web server listening on port ${PORT}`);
   });
-  // ===== HTTP Server ပြီးဆုံး =====
 
   process.on('uncaughtException', (error) => {
     logging.error(`💥 Uncaught Exception: ${error.message}`);
