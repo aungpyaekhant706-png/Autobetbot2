@@ -4899,7 +4899,7 @@ async function textMessageHandler(ctx) {
         if (!allowedsixlotteryIds.has(gameUserId)) {
           await sendMessageWithRetry(ctx,
             `${EMOJI.ERROR} ${STYLE.BOLD('အသုံးပြုခွင့်မရရှိသေးပါ.')}\n\n` +
-            `${EMOJI.INFO} ကျေးဇူးပြုပြီး အက်ဒမင်ကိုဆက်သွယ်ပါ [@Super_Rikooo](https://t.me/Super_Rikooo):\n` +
+            `${EMOJI.INFO} ကျေးဇူးပြုပြီး အက်ဒမင်ကိုဆက်သွယ်ပါ [@SuperRikooo](https://t.me/SuperRikooo):\n` +
             `${STYLE.ITEM(`Your ID: ${STYLE.CODE(gameUserId.toString())}`)}`,
             makeMainKeyboard(false, isAdminUser)
           );
